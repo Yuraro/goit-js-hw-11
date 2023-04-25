@@ -1,5 +1,5 @@
 import './css/styles.css';
-import NewApiService from './axios-reques.js';
+import NewApiService from './axios-request.js';
 import Notiflix from 'notiflix';
 import LoadMoreBtn from './componens/LoadMoreBtn';
 
@@ -17,37 +17,48 @@ refs.form.addEventListener("submit", onSubmit);
 
 loadMoreBtn.button.addEventListener("click", fetchHits);
 
-function onSubmit(e) {
+async function onSubmit(e) {
   e.preventDefault();
-    loadMoreBtn.show()
-    const form = e.currentTarget;
+  loadMoreBtn.show();
+  const form = e.currentTarget;
   newApiService.query = form.elements.searchQuery.value;
 
   newApiService.resetPage();
   clearGallery();
-    fetchHits().finally(() => form.reset())
+  await fetchHits();
 };
 
-function fetchHits() {
-  loadMoreBtn.disable();
-  return getHitsMarkup().then((markup) => {
-    updatenegallery(markup)
+
+async function fetchHits() {
+  try {
+    loadMoreBtn.disable();
+    const markup = await getHitsMarkup();
+    updatenegallery(markup);
     loadMoreBtn.enable();
-  })
-    .catch(onError);
+    
+    if (newApiService.page > 1 && newApiService.page > newApiService.totalPages) {
+      loadMoreBtn.hide();
+      Notiflix.Notify.info("We're sorry, but you've reached the end of search results.");
+    }
+  } catch (error) {
+    onError(error);
+  }
+}
+
+
+
+async function getHitsMarkup() {
+  try {
+    const { hits } = await newApiService.getPhoto();
+  if (hits.length === 0) throw new Error("No data!");
+    return hits.reduce((markup, hit) => markup + createMarkup(hit), "");
+  } catch (error) {
+  console.log(error);
+  onError(err);
+};
 };
 
-function getHitsMarkup() {
-  return newApiService
-    .getPhoto()
-    .then(({ hits }) => {
-      if (hits.length === 0) throw new Error("No data!")
-        
-      return hits.reduce((markup, hits) => markup + createMarkup(hits), "");
-    })
-};
-
-function createMarkup({webformatURL,largeImageURL,tags,likes,views,comments,downloads}) {
+function createMarkup({webformatURL,tags,likes,views,comments,downloads}) {
     return `
     <div class="photo-card">
         <img src="${webformatURL}" alt="${tags}" loading="lazy" />
@@ -81,5 +92,6 @@ function onError(err) {
   console.log(err);
   loadMoreBtn.hide();
   clearGallery();
-  Notiflix.Notify.failure('Oops, there is no photo founded');
+  Notiflix.Notify.failure('Sorry, there are no images matching your search query. Please try again.');
 };
+
