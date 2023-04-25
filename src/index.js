@@ -1,27 +1,51 @@
 import './css/styles.css';
-import { getPhoto } from './axios-reques.js';
+import NewApiService from './axios-reques.js';
+import Notiflix from 'notiflix';
+import LoadMoreBtn from './componens/LoadMoreBtn';
 
 const refs = {
     form: document.getElementById("search-form"),
-    gallery: document.getElementById("gallery")
+    gallery: document.getElementById("gallery"),
 };
+const newApiService = new NewApiService();
+const loadMoreBtn = new LoadMoreBtn({
+  selector: "#load-more",
+  isHidden: true,
+})
 
 refs.form.addEventListener("submit", onSubmit);
 
-function onSubmit(e) {
-    e.preventDefault();
-    const form = e.currentTarget;
-    const inputValue = form.elements.searchQuery.value;
-    getPhoto(inputValue).then(({ hits }) => {
-        console.log(hits);
+loadMoreBtn.button.addEventListener("click", fetchHits);
 
-        if (hits.length === 0) throw new Error("No data!")
-        
-        hits.reduce((markup, hits) => createMarkup(hits), "");
-    })
-    .finally(() => form.reset())
+function onSubmit(e) {
+  e.preventDefault();
+    loadMoreBtn.show()
+    const form = e.currentTarget;
+  newApiService.query = form.elements.searchQuery.value;
+
+  newApiService.resetPage();
+  clearGallery();
+    fetchHits().finally(() => form.reset())
+};
+
+function fetchHits() {
+  loadMoreBtn.disable();
+  return getHitsMarkup().then((markup) => {
+    updatenegallery(markup)
+    loadMoreBtn.enable();
+  })
     .catch(onError);
-}
+};
+
+function getHitsMarkup() {
+  return newApiService
+    .getPhoto()
+    .then(({ hits }) => {
+      if (hits.length === 0) throw new Error("No data!")
+        
+      return hits.reduce((markup, hits) => markup + createMarkup(hits), "");
+    })
+};
 
 function createMarkup({webformatURL,largeImageURL,tags,likes,views,comments,downloads}) {
     return `
@@ -29,22 +53,33 @@ function createMarkup({webformatURL,largeImageURL,tags,likes,views,comments,down
         <img src="${webformatURL}" alt="${tags}" loading="lazy" />
     <div class="info">
         <p class="info-item">
-            <b>Likes${likes}</b>
+            <b>Likes<br>${likes}</b>
         </p>
         <p class="info-item">
-            <b>Views${views}</b>
+            <b>Views<br>${views}</b>
         </p>
         <p class="info-item">
-            <b>Comments${comments}</b>
+            <b>Comments<br>${comments}</b>
         </p>
         <p class="info-item">
-            <b>Downloads${downloads}</b>
+            <b>Downloads<br>${downloads}</b>
         </p>
     </div>
     </div>
     `;
 }
 
-function onError(err) {
-    console.error(err)
+function updatenegallery(markup) {
+  refs.gallery.insertAdjacentHTML("beforeend", markup);
 }
+
+function clearGallery() {
+  refs.gallery.innerHTML = "";
+}
+
+function onError(err) {
+  console.log(err);
+  loadMoreBtn.hide();
+  clearGallery();
+  Notiflix.Notify.failure('Oops, there is no photo founded');
+};
